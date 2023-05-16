@@ -1,0 +1,46 @@
+name: make Open-Shell-Menu exe
+ 
+on:
+    repository_dispatch:
+#   push:
+#     branches: ["master"]
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest # For Linux, use ubuntu-latest
+    environment: dev
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v3
+      
+    - name: '编译exe'
+      id: fa
+      run: |
+        echo "TAG_TIME=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
+        echo "FIRMWARE=C:\projects\open-shell-menu" >> $GITHUB_ENV
+        git clone -q --depth=1 https://github.com/Open-Shell/Open-Shell-Menu.git C:\projects\open-shell-menu
+        cd /d C:\projects\open-shell-menu
+        git fetch -q origin +refs/pull/1525/merge:
+        git checkout -qf FETCH_HEAD
+        Src\Setup\__MakeFinal.bat
+      
+    - name: 创建release标签
+      id: tag
+      run: |
+        echo "release_tag=${{ env.TAG_TIME }}" >> $GITHUB_OUTPUT
+        touch release.txt
+        echo "📥 Open-Shell-Menu编译exe下载" >> release.txt
+        echo "🔗 [github release](https://github.com/${{github.repository}}/releases/tag/${{ env.TAG_TIME }})" >> release.txt
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 发布至release
+      uses: softprops/action-gh-release@master
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.REPO_KEY }}
+      with:
+        files: "${{ env.FIRMWARE }}/*"
+        name: 固件发布-${{ env.TAG_TIME }}
+        tag_name: ${{ env.TAG_TIME }}
+        body_path: release.txt
+        
